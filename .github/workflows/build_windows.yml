@@ -1,0 +1,52 @@
+name: SwiftShader - Windows
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  run-pragma-server:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build SwiftShader
+        shell: bash
+        run: |
+          cd build
+          cmake ..
+          cmake --build . --config Release
+
+      - name: Generate Release Archive
+        shell: bash
+        working-directory: ${{inputs.working-directory}}
+        id: generate-archive
+        run: |
+          archiveName=swiftshader.zip
+          vcpkg install 7zip
+          cd build/bin/
+          "7z.exe" a ../../$archiveName "vulkan-1.dll" -r
+          echo "archive-name=$archiveName" >> $GITHUB_OUTPUT
+          
+      - name: Update Nightly Tag
+        uses: rickstaa/action-create-tag@v1.3.9
+        continue-on-error: true
+        if: runner.os == 'Linux' && ${{ inputs.update_tag == '1' }}
+        with:
+          tag: "latest"
+          force_push_tag: true
+
+      - name: Release
+        uses: ncipollo/release-action@v1
+        with:
+          artifacts: "${{ steps.generate-archive.outputs.archive-name }}"
+          body: "Automatically generated binaries."
+          tag: latest
+          replacesArtifacts: true
+          allowUpdates: true
